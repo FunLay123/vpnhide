@@ -476,8 +476,13 @@ class HookEntry : IXposedHookLoadPackage {
                             )
                         ctor.isAccessible = true
                         val copy = ctor.newInstance(TYPE_WIFI, 0, "WIFI", "") as NetworkInfo
-                        XposedHelpers.setIntField(copy, "mState", XposedHelpers.getIntField(ni, "mState"))
-                        XposedHelpers.setIntField(copy, "mDetailedState", XposedHelpers.getIntField(ni, "mDetailedState"))
+                        // mState / mDetailedState are enums on API 36+, not int ordinals.
+                        XposedHelpers.setObjectField(copy, "mState", XposedHelpers.getObjectField(ni, "mState"))
+                        XposedHelpers.setObjectField(
+                            copy,
+                            "mDetailedState",
+                            XposedHelpers.getObjectField(ni, "mDetailedState"),
+                        )
                         XposedHelpers.setBooleanField(copy, "mIsAvailable", XposedHelpers.getBooleanField(ni, "mIsAvailable"))
 
                         val parcel = param.args[0] as android.os.Parcel
