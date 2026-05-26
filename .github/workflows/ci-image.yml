@@ -6,6 +6,7 @@ on:
     paths:
       - .github/docker/ci/Dockerfile
       - .github/workflows/ci-image.yml
+  # First-time fork setup: run manually once from Actions → CI Image → Run workflow.
   schedule:
     - cron: '0 3 1 * *'
   workflow_dispatch:
