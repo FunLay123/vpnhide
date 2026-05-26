@@ -12,21 +12,61 @@ permissions:
   packages: read
 
 jobs:
-  setup:
+  # Container jobs need ghcr.io/<owner>/vpnhide/ci:latest (published by ci-image.yml).
+  # Forks / first PRs often have no image yet → bootstrap here.
+  prepare-ci-image:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     outputs:
-      image: ${{ steps.img.outputs.image }}
+      image: ${{ steps.pick.outputs.image }}
     steps:
-      - id: img
+      - uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: pick
         env:
           REPO: ${{ github.repository }}
-        run: echo "image=ghcr.io/${REPO,,}/ci:latest" >> "$GITHUB_OUTPUT"
+        run: |
+          set -euo pipefail
+          PRIMARY="ghcr.io/${REPO,,}/ci:latest"
+          FALLBACK="ghcr.io/okhsunrog/vpnhide/ci:latest"
+
+          if docker manifest inspect "$PRIMARY" >/dev/null 2>&1; then
+            echo "Using existing CI image: $PRIMARY"
+            echo "image=$PRIMARY" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if docker manifest inspect "$FALLBACK" >/dev/null 2>&1; then
+            echo "::warning::$PRIMARY not found; using upstream $FALLBACK. Run \"CI Image\" on main to publish your own."
+            echo "image=$FALLBACK" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "::notice::No CI image in GHCR; building and pushing $PRIMARY"
+          docker buildx build --push \
+            --tag "$PRIMARY" \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
+            .github/docker/ci
+          echo "image=$PRIMARY" >> "$GITHUB_OUTPUT"
 
   lint:
-    needs: setup
+    needs: prepare-ci-image
     runs-on: ubuntu-latest
     container:
-      image: ${{ needs.setup.outputs.image }}
+      image: ${{ needs.prepare-ci-image.outputs.image }}
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -184,10 +224,10 @@ jobs:
           if-no-files-found: error
 
   zygisk:
-    needs: setup
+    needs: prepare-ci-image
     runs-on: ubuntu-latest
     container:
-      image: ${{ needs.setup.outputs.image }}
+      image: ${{ needs.prepare-ci-image.outputs.image }}
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -226,10 +266,10 @@ jobs:
           if-no-files-found: error
 
   lsposed:
-    needs: setup
+    needs: prepare-ci-image
     runs-on: ubuntu-latest
     container:
-      image: ${{ needs.setup.outputs.image }}
+      image: ${{ needs.prepare-ci-image.outputs.image }}
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}

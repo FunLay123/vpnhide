@@ -6,6 +6,7 @@ on:
     paths:
       - .github/docker/ci/Dockerfile
       - .github/workflows/ci-image.yml
+  # Run manually once on a new fork if CI fails with "manifest unknown".
   schedule:
     - cron: '0 3 1 * *'
   workflow_dispatch:
